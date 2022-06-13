@@ -9,6 +9,29 @@ from csv import reader
 from bs4 import BeautifulSoup
 import def_codigoPatente
 
+def encontrar_vigencia(x):
+    try:
+        aux = x[x.find('Início da vigência'):]
+        return aux[:aux.find('.')+1]
+    except:
+        return '[]'
+
+
+def encontrar_dmy(x):
+    try:    
+        s = encontrar_vigencia(x).find('em')
+        e = encontrar_vigencia(x).find('202')
+        return encontrar_vigencia(x)[s+3:e+4]
+        
+    except:
+        return '[]'
+
+def final_p(x):
+    if x[len(x)-1] == '.':
+        return True
+    else:
+        return False
+
 links = []
 with open('links.csv', 'r') as csv_file:
     csv_reader = reader(csv_file)
@@ -64,16 +87,15 @@ def ler_todos_links():
                                         break  
                                     else:
                                         if str(soup_documento.find_all(name='p')[j]).find('Programas de Computador') ==-1:
-                                            if len(def_codigoPatente.count_pc_by(str(soup_documento.find_all(name='p')[j]))) == 0 : 
-                                                if len(def_codigoPatente.count_pc_by(str(soup_documento.find_all(name='p')[j+1]))) > 0:
-                                                    patentes.append(soup_documento.find_all(name='p')[j])
-                                                    lista_patente_link.append([links[0][l][0],str(soup_documento.find_all(name='p')[j])[66:len(str(soup_documento.find_all(name='p')[j]))-4]+str(soup_documento.find_all(name='p')[j+1])[66:len(str(soup_documento.find_all(name='p')[j+1]))-4]])
-                                                else:
-                                                    patentes.append(soup_documento.find_all(name='p')[j])
-                                                    lista_patente_link.append([links[0][l][0],str(soup_documento.find_all(name='p')[j])[66:len(str(soup_documento.find_all(name='p')[j]))-4]])   
-                                            else:
-                                                patentes.append(soup_documento.find_all(name='p')[j])
-                                                lista_patente_link.append([links[0][l][0],str(soup_documento.find_all(name='p')[j])[66:len(str(soup_documento.find_all(name='p')[j]))-4]])                                                                                          
+                                            cont_final_p = 1
+                                            aux_final_p = str(soup_documento.find_all(name='p')[j])[66:len(str(soup_documento.find_all(name='p')[j]))-4]
+                                            while final_p(aux_final_p)==False:
+                                                aux_final_p  += str(soup_documento.find_all(name='p')[j+cont_final_p])[66:len(str(soup_documento.find_all(name='p')[j+cont_final_p]))-4]
+                                                cont_final_p+=1
+                                                
+                                            lista_patente_link.append([links[0][l][0], aux_final_p])
+                                                   
+                                            
                         except:
                             break
                         i+=1
@@ -94,20 +116,6 @@ lista_licenciamento = []
 lista_encomenda = []
 lista_distrato_licenciamento = []
 
-def encontrar_vigencia(x):
-    try:
-        aux = x[x.find('Início da vigência'):]
-        return aux[:aux.find('.')+1]
-    except:
-        return '[]'
-def encontrar_dmy(x):
-    try:    
-        s = encontrar_vigencia(x).find('em')
-        e = encontrar_vigencia(x).find('202')
-        return encontrar_vigencia(x)[s+3:e+4]
-        
-    except:
-        return '[]'
 
 i = 0
 while i<= len(lista_patente_link):
