@@ -31,7 +31,8 @@ def count_pc_by(text):
                      '[A-Z][A-Z] \d{2} \d{4} \d{6}-\d',
                      '\d\d/\d{6}',
                      '[A-Z][A-Z] \d{6} \d{6} \d',
-                     '[A-Z][A-Z]\d\d \d{4} \d{6} \d'
+                     '[A-Z][A-Z]\d\d \d{4} \d{6} \d',
+                     
                      ]
 
         pcs = []

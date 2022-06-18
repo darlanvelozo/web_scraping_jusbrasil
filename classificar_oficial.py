@@ -1,4 +1,5 @@
 from cgitb import text
+import re
 from xml.dom.minidom import Element
 import pandas as pd
 from requests import options
@@ -8,11 +9,49 @@ import time
 from csv import reader
 from bs4 import BeautifulSoup
 import def_codigoPatente
+from def_encontrarCNPJ import cnpj
+#==============|| <funçoes utilizadas> ||===============#
+
+TAG_RE = re.compile(r'<[^>]+>')
+
+def remove_tags(text):
+    return TAG_RE.sub('', text)
+
+def encontrar_nome_patente(x):
+    try:
+        s = str(x).find('"')
+        aux = str(x)[s:]
+        e = aux[1:].find('"')
+        if len(aux[:e+2])<5:
+            return []
+        return aux[:e+2]
+    except:
+        return[]
+
+def retornar_patent(x):
+    if len(def_codigoPatente.count_pc_by(x)) == 0:
+        if len(encontrar_nome_patente(x)) != 0:
+            return encontrar_nome_patente(x)
+        else:
+            return encontrar_proc(x)
+    else:
+        return def_codigoPatente.count_pc_by(x)
 
 def encontrar_vigencia(x):
     try:
-        aux = x[x.find('Início da vigência'):]
-        return aux[:aux.find('.')+1]
+        if x.find('Inícioda vigência') >0:
+            aux = x[x.find('Inícioda vigência'):]
+            return aux[:aux.find('.')+1]
+        if x.find('Início da vigência') >0:
+            aux = x[x.find('Início da vigência'):]
+            return aux[:aux.find('.')+1]
+        if x.find('Vigência:') >0:
+            aux = x[x.find('Vigência:'):]
+            return aux[:aux.find('.')+1]
+        if x.find('Início davigência') >0:
+            aux = x[x.find('Início davigência'):]
+            return aux[:aux.find('.')+1]
+
     except:
         return '[]'
 
@@ -21,16 +60,32 @@ def encontrar_dmy(x):
     try:    
         s = encontrar_vigencia(x).find('em')
         e = encontrar_vigencia(x).find('202')
+        if encontrar_vigencia(x).find('202') == -1:
+            e = encontrar_vigencia(x).find('201')
+        if encontrar_vigencia(x).find('contar de') >0:
+            s = encontrar_vigencia(x).find('contar de')
+            return encontrar_vigencia(x)[s+10:e+4]
+        if len(encontrar_vigencia(x)[s+3:e+4]) < 4:
+            return '[]'
         return encontrar_vigencia(x)[s+3:e+4]
-        
     except:
         return '[]'
+
+def encontrar_proc(x):
+
+    try:
+        s = str(x).find('Proc.')
+        e = s+27
+        return x[s:e]
+    except:
+        return []
 
 def final_p(x):
     if x[len(x)-1] == '.':
         return True
     else:
         return False
+#==============|| <\funções utilizadas> ||===============#
 
 links = []
 with open('links.csv', 'r') as csv_file:
@@ -92,8 +147,20 @@ def ler_todos_links():
                                             while final_p(aux_final_p)==False:
                                                 aux_final_p  += str(soup_documento.find_all(name='p')[j+cont_final_p])[66:len(str(soup_documento.find_all(name='p')[j+cont_final_p]))-4]
                                                 cont_final_p+=1
-                                                
-                                            lista_patente_link.append([links[0][l][0], aux_final_p])
+                                            if len(def_codigoPatente.count_pc_by(aux_final_p)) == 0:
+                                                if len(def_codigoPatente.count_pc_by(str(soup_documento.find_all(name='p')[j+1]))) > 0:
+                                                    cont_final_p = 1
+                                                    if final_p(aux_final_p+str(soup_documento.find_all(name='p')[j+1])[66:len(str(soup_documento.find_all(name='p')[j+1]))-4])==False:
+                                                        while final_p(aux_final_p+str(soup_documento.find_all(name='p')[j+1])[66:len(str(soup_documento.find_all(name='p')[j+1]))-4])==False:
+                                                            aux_final_p  += str(soup_documento.find_all(name='p')[j+cont_final_p])[66:len(str(soup_documento.find_all(name='p')[j+cont_final_p]))-4]
+                                                            cont_final_p+=1
+                                                    else:
+                                                        lista_patente_link.append([links[0][l][0],remove_tags(aux_final_p+str(soup_documento.find_all(name='p')[j+1])[66:len(str(soup_documento.find_all(name='p')[j+1]))-4])])
+                                                else:
+                                                    lista_patente_link.append([links[0][l][0], remove_tags(aux_final_p)])
+                                            else:
+                                                lista_patente_link.append([links[0][l][0], remove_tags(aux_final_p)])
+                                            
                                                    
                                             
                         except:
@@ -115,44 +182,79 @@ lista_oferta = []
 lista_licenciamento = []
 lista_encomenda = []
 lista_distrato_licenciamento = []
-
+lista_acordo_parceria = []
+lista_termo_aditivo = []
+lista_reconhecimento_titularidade = []
 
 i = 0
 while i<= len(lista_patente_link):
     try:
+
+        #partilhamento
         if str(lista_patente_link[i][1]).find('Partilhamento') != -1:
             lista_patente_link[i].append('Contrato Partilhamento de Titularidade')
-            lista_patente_link[i].append(def_codigoPatente.count_pc_by(lista_patente_link[i][1]))
+            lista_patente_link[i].append(retornar_patent(lista_patente_link[i][1]))
             lista_patente_link[i].append(encontrar_vigencia(lista_patente_link[i][1]))
             lista_patente_link[i].append(encontrar_dmy(lista_patente_link[i][1]))
+            lista_patente_link[i].append(cnpj(lista_patente_link[i][1]))
             lista_partilhamento.append(lista_patente_link[i])
-
+        #oferta tecnologica
         elif str(lista_patente_link[i][1]).find('Oferta Tecnológica') != -1:
             lista_patente_link[i].append('Oferta Tecnológica')
-            lista_patente_link[i].append(def_codigoPatente.count_pc_by(lista_patente_link[i][1]))
+            lista_patente_link[i].append(retornar_patent(lista_patente_link[i][1]))
             lista_patente_link[i].append(encontrar_vigencia(lista_patente_link[i][1]))
             lista_patente_link[i].append(encontrar_dmy(lista_patente_link[i][1]))
+            lista_patente_link[i].append(cnpj(lista_patente_link[i][1]))
             lista_oferta.append(lista_patente_link[i])
+        #encomenda tecnologica
         elif str(lista_patente_link[i][1]).find('Encomenda Tecnológica') != -1:
             lista_patente_link[i].append('Contrato de Encomenda Tecnológica')
-            lista_patente_link[i].append(def_codigoPatente.count_pc_by(lista_patente_link[i][1]))
+            lista_patente_link[i].append(retornar_patent(lista_patente_link[i][1]))
             lista_patente_link[i].append(encontrar_vigencia(lista_patente_link[i][1]))
             lista_patente_link[i].append(encontrar_dmy(lista_patente_link[i][1]))
+            lista_patente_link[i].append(cnpj(lista_patente_link[i][1]))
             lista_encomenda.append(lista_patente_link[i])
+        #distrato
         elif str(lista_patente_link[i][1]).find('Distrato ') != -1:
             lista_patente_link[i].append('Distrato ao Contrato de Licenciamento')
-            lista_patente_link[i].append(def_codigoPatente.count_pc_by(lista_patente_link[i][1]))
+            lista_patente_link[i].append(retornar_patent(lista_patente_link[i][1]))
             lista_patente_link[i].append(encontrar_vigencia(lista_patente_link[i][1]))
             lista_patente_link[i].append(encontrar_dmy(lista_patente_link[i][1]))
+            lista_patente_link[i].append(cnpj(lista_patente_link[i][1]))
             lista_distrato_licenciamento.append(lista_patente_link[i])
+        #acordo de parceria
+        elif str(lista_patente_link[i][1]).find('Acordo de Parceria') != -1:
+            lista_patente_link[i].append('Acordo de Parceria')
+            lista_patente_link[i].append(retornar_patent(lista_patente_link[i][1]))
+            lista_patente_link[i].append(encontrar_vigencia(lista_patente_link[i][1]))
+            lista_patente_link[i].append(encontrar_dmy(lista_patente_link[i][1]))
+            lista_patente_link[i].append(cnpj(lista_patente_link[i][1]))
+            lista_acordo_parceria.append(lista_patente_link[i])
+        #termo-aditivo
+        elif str(lista_patente_link[i][1]).find('Termo Aditivo') != -1:
+            lista_patente_link[i].append('Termo Aditivo')
+            lista_patente_link[i].append(retornar_patent(lista_patente_link[i][1]))
+            lista_patente_link[i].append(encontrar_vigencia(lista_patente_link[i][1]))
+            lista_patente_link[i].append(encontrar_dmy(lista_patente_link[i][1]))
+            lista_patente_link[i].append(cnpj(lista_patente_link[i][1]))
+            lista_termo_aditivo.append(lista_patente_link[i])
+        #Reconhecimento de Titularidade
+        elif str(lista_patente_link[i][1]).find('Reconhecimento de Titularidade') != -1:
+            lista_patente_link[i].append('Reconhecimento de Titularidade')
+            lista_patente_link[i].append(retornar_patent(lista_patente_link[i][1]))
+            lista_patente_link[i].append(encontrar_vigencia(lista_patente_link[i][1]))
+            lista_patente_link[i].append(encontrar_dmy(lista_patente_link[i][1]))
+            lista_patente_link[i].append(cnpj(lista_patente_link[i][1]))
+            lista_reconhecimento_titularidade.append(lista_patente_link[i])
+        #licenciamento
         else:
             lista_patente_link[i].append('Licenciamento')
-            lista_patente_link[i].append(def_codigoPatente.count_pc_by(lista_patente_link[i][1]))
+            lista_patente_link[i].append(retornar_patent(lista_patente_link[i][1]))
             lista_patente_link[i].append(encontrar_vigencia(lista_patente_link[i][1]))
             lista_patente_link[i].append(encontrar_dmy(lista_patente_link[i][1]))
+            lista_patente_link[i].append(cnpj(lista_patente_link[i][1]))
             lista_licenciamento.append(lista_patente_link[i])
             print(def_codigoPatente.count_pc_by(lista_patente_link[i][1]))
-        
     except:
         break
     i+=1
@@ -176,10 +278,14 @@ while True:
         break
     j+=1
   
-todas_listas_classificados = [lista_partilhamento,lista_oferta,lista_licenciamento,lista_encomenda,lista_distrato_licenciamento]
+todas_listas_classificados = [lista_partilhamento,
+lista_oferta,lista_licenciamento,
+lista_encomenda,lista_distrato_licenciamento, 
+lista_acordo_parceria, lista_termo_aditivo, lista_reconhecimento_titularidade]
+
 lista_classificado = []
 i= 0
-while i < 5:
+while i < len(todas_listas_classificados):
     k=0
     while k <= len(todas_listas_classificados[i]):
         try:
@@ -192,7 +298,7 @@ while i < 5:
         k+=1
     i+=1
 
-df = pd.DataFrame(lista_classificado, columns=['Link', 'Conteudo', 'Classificação', 'codigo', 'vigência', 'data_assinatura'])
+df = pd.DataFrame(lista_classificado, columns=['Link', 'Conteudo', 'Classificação', 'codigo', 'vigência', 'data_assinatura', 'cnpj'])
 
 print(df)
 df.to_csv("classificacao.csv", index = False)
